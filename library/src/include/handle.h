@@ -56,6 +56,9 @@ struct _rocblas_handle
     void* get_trsv_x() const { return trsv_x; }
     void* get_trsv_alpha() const { return trsv_alpha; }
 
+    // dot get pointers
+    void* get_dot() const { return dot; }
+
     rocblas_int device;
     hipDeviceProp_t device_properties;
 
@@ -73,6 +76,9 @@ struct _rocblas_handle
     // space allocated for trsv
     void* trsv_x     = nullptr;
     void* trsv_alpha = nullptr;
+
+    // space allocated for dot
+    void* dot = nullptr;
 
     // default logging_mode is no logging
     static rocblas_layer_mode layer_mode;
@@ -104,4 +110,5 @@ constexpr size_t WORKBUF_TRSM_INVA_SZ   = 128 * 128 * 10 * sizeof(double);
 constexpr size_t WORKBUF_TRSM_INVA_C_SZ = 128 * 128 * 10 * sizeof(double) / 2;
 constexpr size_t WORKBUF_TRSV_X_SZ      = 131072 * sizeof(double);
 constexpr size_t WORKBUF_TRSV_ALPHA_SZ  = sizeof(double);
+constexpr size_t WORKBUF_DOT            = 2048 * sizeof(double);
 #endif

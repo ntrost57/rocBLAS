@@ -23,6 +23,9 @@ _rocblas_handle::_rocblas_handle()
     // allocate trsv temp buffers
     THROW_IF_HIP_ERROR(hipMalloc(&trsv_x, WORKBUF_TRSV_X_SZ));
     THROW_IF_HIP_ERROR(hipMalloc(&trsv_alpha, WORKBUF_TRSV_ALPHA_SZ));
+
+    // allocate dot temp buffer
+    THROW_IF_HIP_ERROR(hipMalloc(&dot, WORKBUF_DOT));
 }
 
 /*******************************************************************************
@@ -40,6 +43,8 @@ _rocblas_handle::~_rocblas_handle()
         hipFree(trsv_x);
     if(trsv_alpha)
         hipFree(trsv_alpha);
+    if(dot)
+        hipFree(dot);
 }
 
 /*******************************************************************************

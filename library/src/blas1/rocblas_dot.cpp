@@ -15,8 +15,8 @@
 
 namespace {
 // HIP support up to 1024 threads/work itemes per thread block/work group
-// setting to 512 for gfx803.
-constexpr int NB = 512;
+// setting to 256
+constexpr int NB = 256;
 
 template <typename T>
 __global__ void dot_kernel_part1(
@@ -25,13 +25,15 @@ __global__ void dot_kernel_part1(
     ssize_t tx  = hipThreadIdx_x;
     ssize_t tid = hipBlockIdx_x * hipBlockDim_x + tx;
 
-    __shared__ T tmp[NB];
+    T sum = 0;
 
-    // bound
-    if(tid < n)
-        tmp[tx] = y[tid * incy] * x[tid * incx];
-    else
-        tmp[tx] = 0; // pad with zero
+    for(rocblas_int i = tid; i < n; i += hipGridDim_x * hipBlockDim_x)
+    {
+        sum += y[i * incy] * x[i * incx];
+    }
+
+    __shared__ T tmp[NB];
+    tmp[tx] = sum;
 
     rocblas_sum_reduce<NB>(tx, tmp);
 
@@ -49,16 +51,14 @@ rocblas_status rocblas_dot_workspace(rocblas_handle __restrict__ handle,
                                      const T* y,
                                      rocblas_int incy,
                                      T* result,
-                                     T* workspace,
-                                     rocblas_int blocks)
+                                     T* workspace)
 {
     // At least two kernels are needed to finish the reduction
-    // kennel 1 write partial result per thread block in workspace, number of partial result is
-    // blocks
+    // kernel 1 write partial result per thread block in workspace, number of partial result is NB
     // kernel 2 gather all the partial result in workspace and finish the final reduction. number of
     // threads (NB) loop blocks
 
-    dim3 grid(blocks);
+    dim3 grid(NB);
     dim3 threads(NB);
 
     if(incx < 0)
@@ -74,7 +74,7 @@ rocblas_status rocblas_dot_workspace(rocblas_handle __restrict__ handle,
                        threads,
                        0,
                        handle->rocblas_stream,
-                       blocks,
+                       NB,
                        workspace,
                        handle->pointer_mode != rocblas_pointer_mode_device ? workspace : result);
     if(handle->pointer_mode != rocblas_pointer_mode_device)
@@ -171,15 +171,13 @@ rocblas_status rocblas_dot(rocblas_handle handle,
         return rocblas_status_success;
     }
 
-    rocblas_int blocks = (n - 1) / NB + 1;
+    void* workspace = handle->get_dot();
 
-    auto workspace =
-        rocblas_unique_ptr{rocblas::device_malloc(sizeof(T) * blocks), rocblas::device_free};
     if(!workspace)
         return rocblas_status_memory_error;
 
     auto status =
-        rocblas_dot_workspace<T>(handle, n, x, incx, y, incy, result, (T*)workspace.get(), blocks);
+        rocblas_dot_workspace<T>(handle, n, x, incx, y, incy, result, (T*)workspace);
 
     return status;
 }
